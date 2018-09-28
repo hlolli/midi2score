@@ -1,0 +1,16 @@
+out
+target
+node_modules
+package-lock.json
+*#
+*~
+*.wav
+yarn.lock
+lib
+.nrepl-port
+.shadow-cljs
+flute.orc
+prufa.mid
+prufa.sco
+prufa.edn
+lib

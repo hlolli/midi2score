@@ -1,0 +1,36 @@
+{
+  "name": "midi2score",
+  "version": "1.0.0-alpha",
+  "description": "Conver midi file to Csound score from the terminal",
+  "main": "lib/index.js",
+  "bin": "./lib/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "npx shadow-cljs watch main",
+    "release": "npx shadow-cljs release main"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hlolli/midi2score.git"
+  },
+  "keywords": [
+    "csound",
+    "midi",
+    "score",
+    "sco"
+  ],
+  "author": "Hlöðver Sigurðsson",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/hlolli/midi2score/issues"
+  },
+  "homepage": "https://github.com/hlolli/midi2score",
+  "dependencies": {
+    "argparse": "^1.0.10",
+    "midi-file-parser": "1.0.0",
+    "prompt-confirm": "^2.0.4"
+  },
+  "devDependencies": {
+    "shadow-cljs": "^2.6.7"
+  }
+}

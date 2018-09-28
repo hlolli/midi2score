@@ -1,0 +1,17 @@
+{:dependencies [[org.clojure/tools.reader "1.3.0"]
+                [org.clojure/spec.alpha "0.2.176"]
+                [org.clojure/test.check "0.10.0-alpha3"]
+                [fipp "0.6.12"]]
+
+ :source-paths
+ ["src"]
+
+ :builds
+ {:main {:target           :node-script
+         :output-dir       "lib"
+         :output-to        "lib/index.js"
+         :compiler-options {:optimizations :simple
+                            :source-map    true
+                            :language-out  :es5}
+         ;; :modules
+         :main             cljs.convert/main}}}
