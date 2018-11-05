@@ -1,6 +1,7 @@
 (ns cljs.webapp
   (:require [reagent.core :as r]
             [clojure.string :as string]
+            ;; [cljs.convert :refer ]
             ["react-dropzone" :as Dropzone]))
 
 
