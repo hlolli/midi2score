@@ -27,10 +27,15 @@
   "homepage": "https://github.com/hlolli/midi2score",
   "dependencies": {
     "argparse": "^1.0.10",
+    "create-react-class": "^15.6.3",
     "midi-file-parser": "1.0.0",
-    "prompt-confirm": "^2.0.4"
+    "prismjs": "^1.15.0",
+    "prompt-confirm": "^2.0.4",
+    "react-dropzone": "^7.0.1"
   },
   "devDependencies": {
-    "shadow-cljs": "^2.6.7"
+    "react": "^16.6.0",
+    "react-dom": "^16.6.0",
+    "shadow-cljs": "^2.6.23"
   }
 }

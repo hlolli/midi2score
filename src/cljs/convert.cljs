@@ -24,12 +24,12 @@
               #js {:help "Output file"})
 
 (add-argument #js ["-t" "--tempo"]
-              #js {:help    "Tempo in bpm"
-                   :default 60})
+              #js {:help         "Tempo in bpm"
+                   :defaultValue 60})
 
 (add-argument #js ["-f" "--force"]
-              #js {:help    "Overwrite a score file if it exists"
-                   :default false})
+              #js {:help         "Overwrite a score file if it exists"
+                   :defaultValue false})
 
 (add-argument "--edn"
               #js {:help "Exports .edn dataformat (clj/cljs) instead of midi"})
@@ -47,7 +47,7 @@
                     cur-p3-len (- max-p3 ((comp count str :dur) data))
                     cur-p4-len (- max-p4 ((comp count str :vel) data))]
                 (str out-str "\n"
-                     "p" (inc (:channel data)) " "
+                     "i" (inc (:channel data)) " "
                      (:p2 data) (new-empty-string cur-p2-len) " "
                      (:dur data) (new-empty-string cur-p3-len) " "
                      (:vel data) (new-empty-string cur-p4-len) " "
@@ -79,7 +79,7 @@
                    (conj edn-out {:p2      (:p2 matching-event)
                                   :midinn  (:noteNumber event)
                                   :vel     (:vel matching-event)
-                                  :dur     (- cur-time (:p2 matching-event))
+                                  :dur     (max 0 (- cur-time (:p2 matching-event)))
                                   :channel (:channel matching-event)})))
           :else
           (recur events last-time cur-notes-on edn-out))))))
@@ -101,8 +101,10 @@
         first-track-edn (parse-track first-track tempo tick-resolution)
         first-track-sco (edn2sco first-track-edn)
         spit-output     #(if (.-edn args)
-                           (fs/writeFileSync (str base-filename ".edn") first-track-edn)
-                           (fs/writeFileSync (str base-filename ".sco") first-track-sco))]
+                           (fs/writeFileSync (or (.-out args)
+                                                 (str base-filename ".edn")) first-track-edn)
+                           (fs/writeFileSync (or (.-out args)
+                                                 (str base-filename ".sco")) first-track-sco))]
     (if (and (not (.-edn args)) (not (.-force args))
              (fs/existsSync (str base-filename ".sco")))
       (-> (new Confirm (str "Do you want to overwrive " (str base-filename ".sco") "?"))

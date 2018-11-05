@@ -1,17 +1,32 @@
 {:dependencies [[org.clojure/tools.reader "1.3.0"]
                 [org.clojure/spec.alpha "0.2.176"]
                 [org.clojure/test.check "0.10.0-alpha3"]
-                [fipp "0.6.12"]]
+                [fipp "0.6.12"]
+                ;; Browser deps
+                [reagent "0.8.1"]
+                ]
 
- :source-paths
- ["src"]
+ :source-paths ["src"]
 
- :builds
- {:main {:target           :node-script
-         :output-dir       "lib"
-         :output-to        "lib/index.js"
-         :compiler-options {:optimizations :simple
-                            :source-map    true
-                            :language-out  :es5}
-         ;; :modules
-         :main             cljs.convert/main}}}
+ :builds {:cli {:target           :node-script
+                :output-dir       "lib"
+                :output-to        "lib/index.js"
+                :compiler-options {:optimizations :simple
+                                   :source-map    true
+                                   :language-out  :es5}
+                :main             cljs.convert/main}
+          
+          :browser {:target     :browser
+                    :output-dir "public/js"
+                    :asset-path "js"
+                    :modules    {:main {:entries [cljs.webapp]}}
+                    
+                    :compiler-options {:optimizations :simple
+                                       :source-map    true}
+                    :devtools         {:http-root          "public"
+                                       :http-resource-root "public"
+                                       :http-port          8600
+                                       :http-host          "localhost"
+                                       :before-load        cljs.webapp/run
+                                       :after-load         cljs.webapp/run
+                                       }}}}
