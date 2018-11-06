@@ -18,7 +18,7 @@
           
           :browser {:target     :browser
                     :output-dir "public/midi2sco/js"
-                    :asset-path "midi2sco/js"
+                    :asset-path "js"
                     :modules    {:main {:entries [cljs.webapp]}}
                     
                     :compiler-options {:optimizations :simple

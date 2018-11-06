@@ -38,7 +38,7 @@
 (defn new-empty-string [length]
   (apply str (take length (cycle " "))))
 
-(defn edn2sco [edn]
+(defn edn2sco [edn p1]
   (let [max-p2 (apply max (map (comp count str :p2) edn))
         max-p3 (apply max (map (comp count str :dur) edn))
         max-p4 (apply max (map (comp count str :vel) edn))]
@@ -47,7 +47,7 @@
                     cur-p3-len (- max-p3 ((comp count str :dur) data))
                     cur-p4-len (- max-p4 ((comp count str :vel) data))]
                 (str out-str "\n"
-                     "i" (inc (:channel data)) " "
+                     "i" (or p1 (inc (:channel data))) " "
                      (:p2 data) (new-empty-string cur-p2-len) " "
                      (:dur data) (new-empty-string cur-p3-len) " "
                      (:vel data) (new-empty-string cur-p4-len) " "
@@ -60,7 +60,7 @@
          cur-notes-on     {}
          edn-out          []]
     (if (empty? event)
-      edn-out
+      (sort-by :p2 edn-out)
       (let [event-type (:subtype event)
             cur-time   (+ last-time (* tempo (/ (or (:deltaTime event) 0)
                                                 tick-resolution)))]
@@ -99,7 +99,7 @@
         tempo-track     (first raw-tracks)
         first-track     (first (rest raw-tracks))
         first-track-edn (parse-track first-track tempo tick-resolution)
-        first-track-sco (edn2sco first-track-edn)
+        first-track-sco (edn2sco first-track-edn nil)
         spit-output     #(if (.-edn args)
                            (fs/writeFileSync (or (.-out args)
                                                  (str base-filename ".edn")) first-track-edn)
