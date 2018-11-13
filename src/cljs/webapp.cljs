@@ -185,7 +185,9 @@
              :class-name "button-secondary pure-button"
              :on-click   (fn [] (openAlert #js {:message "copied to clipboard!" :type "success"}))
              })
-          "Copy to Clipboard"]]))})
+          "Copy to Clipboard"]
+         [:button {:class-name "pure-button" :on-click #(swap! app-state assoc :files [] :score "")}
+          "Clear"]]))})
   )
 
 (defn files-list [files]
