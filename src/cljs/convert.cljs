@@ -54,7 +54,7 @@
                      (:midinn data))))
             "" edn)))
 
-(defn parse-track [events tempo tick-resolution]
+(defn parse-midi [events tempo tick-resolution]
   (loop [[event & events] events
          last-time        0
          cur-notes-on     {}
@@ -62,8 +62,9 @@
     (if (empty? event)
       (sort-by :p2 edn-out)
       (let [event-type (:subtype event)
-            cur-time   (+ last-time (* tempo (/ (or (:deltaTime event) 0)
-                                                tick-resolution)))]
+            cur-time   (* (/ 60 tempo)
+                          (+ last-time (/ (or (:deltaTime event) 0)
+                                          tick-resolution)))]
         (cond
           (= "noteOn" event-type)
           (recur events
@@ -98,7 +99,7 @@
         raw-tracks      (:tracks raw-edn)
         tempo-track     (first raw-tracks)
         first-track     (first (rest raw-tracks))
-        first-track-edn (parse-track first-track tempo tick-resolution)
+        first-track-edn (parse-midi first-track tempo tick-resolution)
         first-track-sco (edn2sco first-track-edn nil)
         spit-output     #(if (.-edn args)
                            (fs/writeFileSync (or (.-out args)

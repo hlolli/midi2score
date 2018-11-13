@@ -6,8 +6,8 @@
   "bin": "./lib/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "npx shadow-cljs watch main",
-    "release": "npx shadow-cljs release main"
+    "watch": "npx shadow-cljs watch browser",
+    "release": "npx shadow-cljs release browser"
   },
   "repository": {
     "type": "git",

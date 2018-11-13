@@ -1,7 +1,7 @@
 (ns cljs.webapp
   (:require [reagent.core :as r]
             [clojure.string :as string]
-            [cljs.convert :refer [parse-track edn2sco]]
+            [cljs.convert :refer [parse-midi edn2sco]]
             [cljs.midi-standard :refer [program-change-names]]
             ["react-clipboard.js" :default Clipboard]
             ;; ["react-alert" :refer [withAlert]]
@@ -11,7 +11,6 @@
 
 (defn header []
   [:header [:h1 "Midi to Csound Score"]])
-
 
 (def app-state (r/atom {:drop-hover false :files []
                         :error      []    :score ""}))
@@ -35,13 +34,14 @@
             (doseq [{:keys [track-channel track-events track-name track-program] :as track} (:tracks file)]
               (let [global-bpm   (get-in file [:metadata :global-bpm])
                     tick-res     (:tick-resolution file)
-                    edn-score    (parse-track track-events global-bpm tick-res)
+                    edn-score    (parse-midi track-events (or global-bpm 60) tick-res)
                     csnd-score   (edn2sco edn-score (:instrument-number file))
                     program-name (get program-change-names track-program)
                     comment      (str "\n\n;; channel: " track-channel
-                                      "\n;; track name: " track-name
-                                      "\n;; program: " track-program
-                                      (when program-name (str " (" program-name ")")) "\n")]
+                                      (when-not (= 0 (:midi-format file))
+                                        "\n;; track name: " track-name
+                                        "\n;; program: " track-program
+                                        (when program-name (str " (" program-name ")"))) "\n")]
                 (swap! app-state update :score str (str comment csnd-score))))))))
     :reagent-render (fn [this] [:span])}))
 
@@ -96,6 +96,25 @@
                  :track-cc      track-cc      :track-events      track-events
                  :track-channel track-channel :instrument-number track-channel}))) [] tracks)]))
 
+(defn extract-metadata-format-0 [{:keys [tracks] :as midi-edn}]
+  [nil
+   (reduce
+    (fn [ret track]
+      (conj ret
+            (let [track-name-meta      (first (filter #(= (:subtype %) "trackName") track))
+                  track-name           (when track-name-meta
+                                         (:text track-name-meta)
+                                         #_(str "track" (inc (count ret))))
+                  track-program-change (first (filter #(= (:subtype %) "programChange") track))
+                  track-program        (if track-program-change (:programNumber track-program-change) 0)
+                  track-cc             (vec (filter #(= (:subtype %) "controller") track))
+                  track-events         (vec (filter #(or (= (:subtype %) "noteOff")
+                                                         (= (:subtype %) "noteOn")) track))
+                  track-channel        (:channel (first track-events))]
+              {:track-name    track-name    :track-program     track-program
+               :track-cc      track-cc      :track-events      track-events
+               :track-channel track-channel :instrument-number track-channel}))) [] tracks)])
+
 (defn file-event-handler [files-array]
   (doseq [index (range files-array.length)]
     (let [fileobj  (aget files-array index)
@@ -121,12 +140,16 @@
                                           {:error-message raw-json})
                                    (let [raw-edn           (js->clj raw-json :keywordize-keys true)
                                          header            (:header raw-edn)
+                                         midi-format       (:formatType header)
                                          tick-resolution   (:ticksPerBeat header)
-                                         [metadata tracks] (extract-metadata raw-edn)]
+                                         [metadata tracks] (if (= 0 midi-format)
+                                                             (extract-metadata-format-0 raw-edn)
+                                                             (extract-metadata raw-edn))]
                                      (swap! app-state update :files conj
                                             {:fileobj         fileobj
                                              :raw-edn         raw-edn
                                              :metadata        metadata
+                                             :midi-format     midi-format
                                              :tracks          tracks
                                              :filename        filename
                                              :tick-resolution tick-resolution
