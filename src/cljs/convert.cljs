@@ -62,24 +62,26 @@
     (if (empty? event)
       (sort-by :p2 edn-out)
       (let [event-type (:subtype event)
-            cur-time   (* (/ 60 tempo)
-                          (+ last-time (/ (or (:deltaTime event) 0)
-                                          tick-resolution)))]
+            cur-time   (+ last-time (/ (or (* (/ 60 tempo) (:deltaTime event)) 0) tick-resolution))]
+        ;; (when (= 60 (:noteNumber event)) (prn event))
         (cond
           (= "noteOn" event-type)
           (recur events
                  cur-time
                  (assoc cur-notes-on (:noteNumber event)
-                        {:p2 cur-time :vel (:velocity event)})
+                        {:p2 (double cur-time) :vel (:velocity event)})
                  edn-out)
           (= "noteOff" event-type)
           (recur events
                  cur-time
                  (dissoc cur-notes-on (:noteNumber event))
                  (let [matching-event (get cur-notes-on (:noteNumber event))]
-                   (conj edn-out {:p2      (:p2 matching-event)
-                                  :midinn  (:noteNumber event)
-                                  :vel     (:vel matching-event)
+                   ;; (when-not (or (:p2 matching-event) (:vel matching-event)) (prn event))
+                   (conj edn-out {:p2      (or (:p2 matching-event)
+                                               (if (empty? edn-out)
+                                                 0 (:p2 (last edn-out))))
+                                  :midinn  (or (:noteNumber event) 0)
+                                  :vel     (or (:vel matching-event) 0)
                                   :dur     (max 0 (- cur-time (:p2 matching-event)))
                                   :channel (:channel matching-event)})))
           :else
