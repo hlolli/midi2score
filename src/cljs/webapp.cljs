@@ -37,11 +37,13 @@
                     edn-score    (parse-midi track-events (or global-bpm 60) tick-res)
                     csnd-score   (edn2sco edn-score (:instrument-number file))
                     program-name (get program-change-names track-program)
-                    comment      (str "\n\n;; channel: " track-channel
-                                      (when-not (= 0 (:midi-format file))
-                                        "\n;; track name: " track-name
-                                        "\n;; program: " track-program
-                                        (when program-name (str " (" program-name ")"))) "\n")]
+                    comment      (if-not track-channel
+                                   "\n"
+                                   (str "\n\n;; channel: " track-channel
+                                        (when-not (= 0 (:midi-format file))
+                                          "\n;; track name: " track-name
+                                          "\n;; program: " track-program
+                                          (when program-name (str " (" program-name ")"))) "\n"))]
                 (swap! app-state update :score str (str comment csnd-score))))))))
     :reagent-render (fn [this] [:span])}))
 
@@ -73,8 +75,12 @@
 
 (defn extract-metadata [{:keys [tracks] :as midi-edn}]
   (let [global-meta         (first tracks)
-        global-timesig-meta (first (filter #(= (:subtype %) "timeSignature") global-meta))
-        global-bpm          (if global-timesig-meta (:metronome global-timesig-meta) 60)
+        global-timesig-meta (first (filter #(= (:subtype %) "setTempo") global-meta))
+        global-bpm          (if global-timesig-meta
+                              (/ 60
+                                 (/ (or (:microsecondsPerBeat global-timesig-meta)
+                                        1000000)
+                                    1000000)) 60)
         tracks              (rest tracks)]
     [{:global-bpm global-bpm
       ;; TODO
