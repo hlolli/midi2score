@@ -4,11 +4,8 @@
             [clojure.string :as string]
             [cljs.convert :refer [parse-midi edn2sco]]
             [cljs.midi-standard :refer [program-change-names]]
-            ;; [hx.react :as hx :refer [defnc]]
-            ;; [hx.hooks :refer [<-state]]
             ["react-clipboard.js" :default Clipboard]
             ["react-dropdown" :default Dropdown]
-            ;; ["react-alert" :refer [withAlert]]
             ["simple-react-alert" :default Alert :refer [openAlert]]
             ["midi-file-parser" :as midi-file-parser]
             ["react-dropzone" :as Dropzone]))

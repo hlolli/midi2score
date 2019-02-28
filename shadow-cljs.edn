@@ -23,7 +23,7 @@
                     :asset-path "js"
                     :modules    {:main {:entries [cljs.webapp]}}
 
-                    :compiler-options {:optimizations :simple
+                    :compiler-options {:optimizations :advanced
                                        :infern-externs :auto
                                        :source-map    true}
                     :devtools         {:http-root          "public"
