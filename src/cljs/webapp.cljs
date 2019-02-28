@@ -1,16 +1,20 @@
 (ns cljs.webapp
   (:require [reagent.core :as r]
+            ["react-dom" :as react-dom]
             [clojure.string :as string]
             [cljs.convert :refer [parse-midi edn2sco]]
             [cljs.midi-standard :refer [program-change-names]]
+            ;; [hx.react :as hx :refer [defnc]]
+            ;; [hx.hooks :refer [<-state]]
             ["react-clipboard.js" :default Clipboard]
+            ["react-dropdown" :default Dropdown]
             ;; ["react-alert" :refer [withAlert]]
             ["simple-react-alert" :default Alert :refer [openAlert]]
             ["midi-file-parser" :as midi-file-parser]
             ["react-dropzone" :as Dropzone]))
 
 (defn header []
-  [:header [:h1 "Midi to Csound Score"]])
+  [:header [:h1 "MIDI to Csound Score"]])
 
 (def app-state (r/atom {:drop-hover false :files []
                         :error      []    :score ""}))
@@ -19,6 +23,34 @@
   [:div {:class-name "drop-overlay"}
    [:div {:class-name "drop-overlay-message"}
     [:h5 "Drop .mid or .midi file here"]]])
+
+(defn apply-midi-conversion [edn-score p4-op p5-op]
+  (loop [edn edn-score
+         op [p4-op p5-op]
+         index 0]
+    (if (empty? op)
+      (vec edn)
+      (recur (mapv (fn [event]
+                     (assoc event (if (zero? index) :p4 :p5)
+                            (case (first op)
+                              ;; vel
+                              0 (:vel event)
+                              ;; vel->amp
+                              1 (* (/ (js/Math.log (+ 1 (:vel event)))
+                                      (js/Math.log 128))
+                                   32767)
+                              ;; vel->ampfs1
+                              2 (/ (js/Math.log (+ 1 (:vel event)))
+                                   (js/Math.log 128))
+                              ;; vel->db
+                              3 (* 10 (js/Math.log (/ (max (:vel event) 0.0001) 127)))
+                              ;; midinn
+                              4 (:midinn event)
+                              ;; midinn->freq
+                              5 (* 440 (js/Math.pow 2.0 (/ (- (:midinn event) 69) 12)))))) edn)
+             (rest op)
+             (inc index))))
+  #_edn-score)
 
 (defn score-computer [files]
   (r/create-class
@@ -31,11 +63,19 @@
           (let [is-first? (empty? (:score @app-state))]
             (swap! app-state update :score str (str (if is-first?  "" "\n\n")
                                                     ";; File: " (:filename file)))
-            (doseq [{:keys [track-channel track-events track-name track-program] :as track} (:tracks file)]
-              (let [global-bpm   (get-in file [:metadata :global-bpm])
+            (dotimes [index (count (:tracks file))]
+              (let [{:keys [track-channel track-events track-name
+                            track-program tempo] :as track}
+                    (nth (:tracks file) index)
+                    p4-operator  (nth (:p4-operator file) index)
+                    p5-operator  (nth (:p5-operator file) index)
+                    global-bpm (let [gbpm (get-in file [:metadata :global-bpm])]
+                                 (if (or (not gbpm) (zero? gbpm)) 60 gbpm))
+                    global-bpm   (* global-bpm (:tempo file))
                     tick-res     (:tick-resolution file)
                     edn-score    (parse-midi track-events (or global-bpm 60) tick-res)
-                    csnd-score   (edn2sco edn-score (:instrument-number file))
+                    edn-score    (apply-midi-conversion edn-score p4-operator p5-operator)
+                    csnd-score   (edn2sco edn-score (nth (:track-names file) index))
                     program-name (get program-change-names track-program)
                     comment      (if-not track-channel
                                    "\n"
@@ -44,7 +84,8 @@
                                           "\n;; track name: " track-name
                                           "\n;; program: " track-program
                                           (when program-name (str " (" program-name ")"))) "\n"))]
-                (swap! app-state update :score str (str comment csnd-score))))))))
+                (swap! app-state update :score str (str comment csnd-score)))
+              #_(:tracks file))))))
     :reagent-render (fn [this] [:span])}))
 
 (defn score-section [score-cursor]
@@ -126,12 +167,13 @@
     (let [fileobj  (aget files-array index)
           filename (.-name fileobj)
           filetype (.-type fileobj)
-          max-p1   (if (empty? (:files @app-state))
-                     0
-                     (let [all-p1 (map :p1 (:files @app-state))
-                           nums   (filter number? all-p1 )]
-                       (if (empty? nums)
-                         0 (apply max (map #(int (js/Math.abs %)) nums)))))]
+          ;; max-p1   (if (empty? (:files @app-state))
+          ;;            0
+          ;;            (let [all-p1 (map :p1 (:files @app-state))
+          ;;                  nums   (filter number? all-p1 )]
+          ;;              (if (empty? nums)
+          ;;                0 (apply max (map #(int (js/Math.abs %)) nums)))))
+          ]
       (if-not (= "audio/midi" filetype)
         (swap! app-state update :error conj
                {:error-message (str "The file " filename
@@ -150,7 +192,18 @@
                                          tick-resolution   (:ticksPerBeat header)
                                          [metadata tracks] (if (= 0 midi-format)
                                                              (extract-metadata-format-0 raw-edn)
-                                                             (extract-metadata raw-edn))]
+                                                             (extract-metadata raw-edn))
+                                         tracks (->> tracks
+                                                     (remove #(and (empty? (:track-cc %))
+                                                                   (empty? (:track-events %)))))
+                                         track-names (reduce
+                                                      (fn [i track]
+                                                        (let [channel-num (if (empty? (:track-cc track))
+                                                                            (:channel (first (:track-events track)))
+                                                                            (:channel (first (:track-cc track))))]
+                                                          (if (or (not channel-num) (zero? channel-num))
+                                                            (conj i 1)
+                                                            (conj i (inc channel-num))))) [] tracks)]
                                      (swap! app-state update :files conj
                                             {:fileobj         fileobj
                                              :raw-edn         raw-edn
@@ -160,12 +213,12 @@
                                              :filename        filename
                                              :tick-resolution tick-resolution
                                              :include?        true
-                                             :p1              (inc max-p1)
+                                             :track-names     track-names
+                                             :p4-operator     (vec (repeat (count tracks) 0))
+                                             :p5-operator     (vec (repeat (count tracks) 4))
                                              :tempo           1.00})))))]
           (set! (.-onload file-reader) read-finish-cb)
           (.readAsBinaryString file-reader fileobj))))))
-
-
 
 (defn file-selector []
   (r/create-class
@@ -178,7 +231,7 @@
                                (when (< 0 event.target.files.length)
                                  (file-event-handler event.target.files)))}]
          [:label {:for "files" :class-name "pure-button pure-button-primary"}
-          "Open midi file"]
+          "Open MIDI file"]
          #_[:button {:class-name "button-success pure-button"} "Play"]
          #_[:button {:class-name "button-error pure-button"} "Stop"]
          [:> Clipboard
@@ -198,44 +251,86 @@
 
 (defn files-list [files]
   (into [:div]
-        (mapv #(vector :h5 {:style {:display "inline-block"}}
-                       (str (:filename %))) files))
-  #_(into [:ul {:class-name "files-list"}
-           [:li [:div {:style {:margin-left "40px"}}
-                 [:i {:style {:margin-right "64px"}} "instr"]
-                 [:i {:style {:margin-right "36px"}} "tempo"]
-                 [:i "midifile"]]]]
-          (mapv
-           (fn [file]
-             [:li
-              [:div {:class-name "files-list-column pure-form"}
-               [:input {:type    "checkbox" :class-name "pure-checkbox"
-                        :checked (:include? file)}]
-               [:input {:type        "text"
-                        :class-name  "p1val"
-                        :placeholder "p1"
-                        :value       (:tempo file)}]
-               [:input {:type        "number"
-                        :class-name  "tempoval"
-                        :step        "0.01"
-                        :min         "0.01"
-                        :placeholder "tempo"
-                        :value       (:tempo file)}]
-               [:h5 {:style {:display "inline-block"}}
-                (str (:filename file))]]])
-           files)))
+        (map-indexed
+         (fn [index file]
+           (vector :div
+                   [:h5 {:style {:display "inline-block"
+                                 :margin 0 :height "10px"}}
+                    (str (:filename file))]
+                   [:p {:style {:margin 0 :display "inline-block" :margin-left "32px"}} "tempo: "]
+                   [:input {:type        "number"
+                            :on-change (fn [event]
+                                         (swap! app-state update :files assoc index
+                                                (assoc (nth (:files @app-state) index) :tempo
+                                                       event.target.value)))
+                            :class-name  "tempoval"
+                            :step        "0.01"
+                            :min         "0.01"
+                            :placeholder "tempo"
+                            :value       (:tempo file)}]
+                   (into
+                    [:ul {:class-name "files-list"}
+                     [:li [:div {:style {:margin-left "40px"}}
+                           [:i {:style {:margin-right "34px"}} "channel"]
+                           [:i {:style {:margin-right "96px"}} "instr"]
+                           [:i {:style {:margin-right "156px"}} "p4"]
+                           [:i {:style {:margin-right "136px"}} "p5"]
+                           #_[:i {:style {:margin-right "0px"}} "p6 (optinal filler values)"]
+                           #_[:i "midifile"]]]
+                     #_[:li (str  file #_(:tracks file))]]
+                    (let [options #js [#js {:value 0 :label "vel"}
+                                       #js {:value 1 :label "vel->amp"}
+                                       #js {:value 2 :label "vel->ampfs1"}
+                                       #js {:value 3 :label "vel->db"}
+                                       #js {:value 4 :label "midinn"}
+                                       #js {:value 5 :label "midinn->freq"}]]
+                      (map-indexed
+                       (fn [index-inner channel]
+                         (vector
+                          :li
+                          [:div
+                           {:style {:margin "0 auto"
+                                    :margin-left "40px"
+                                    :width "600px"
+                                    :height "40px"}}
+                           [:b {:style {:display "inline-block" :width "70px"
+                                        :line-height "40px"}}
+                            (str "# " (:channel (if (empty? (:track-cc channel))
+                                                  (first (:track-events channel))
+                                                  (first (:track-cc channel)))))]
+                           [:input {:type        "text"
+                                    :class-name  "p1val"
+                                    :placeholder (nth (:track-names file) index-inner)
+                                    :on-change (fn [event]
+                                                 (swap! app-state update :files assoc index
+                                                        (assoc file :track-names
+                                                               (assoc (:track-names file) index-inner event.target.value))))
+                                    :value     (nth (:track-names file) index-inner)}]
+                           [:> Dropdown
+                            {:class-name "inline-dropdown"
+                             :on-change (fn [event]
+                                          (swap! app-state update :files assoc index
+                                                 (assoc file :p4-operator
+                                                        (assoc (:p4-operator file) index-inner (.-value event)))))
+                             :value (nth options (nth (:p4-operator file) index-inner))
+                             :options options}]
+                           [:> Dropdown
+                            {:class-name "inline-dropdown inline-dropdown-right"
+                             :on-change (fn [event]
+                                          (swap! app-state update :files assoc index
+                                                 (assoc file :p5-operator
+                                                        (assoc (:p5-operator file) index-inner (.-value event)))))
+                             :value (nth options (nth (:p5-operator file) index-inner))
+                             :options options}]]))
+                       (:tracks file)
+                       #_(->> (:tracks file)
+                              (remove #(and (empty? (:track-cc %))
+                                            (empty? (:track-events %))))))))))
+         files)))
 
 (defn main []
   (let [score-cursor (r/cursor app-state [:score])]
-    [:> Dropzone
-     {:disable-click true
-      :className     "main-container"
-      :style         {:position "relative"}
-      :accept        ""
-      :on-drop       #(do (swap! app-state assoc :drop-hover false)
-                          (file-event-handler %))
-      :on-drag-enter #(swap! app-state assoc :drop-hover true)
-      :on-drag-leave #(swap! app-state assoc :drop-hover false)}
+    [:div {:class-name "main-container"}
      [:> Alert]
      (when (:drop-hover @app-state)
        [drop-overlay])
@@ -246,10 +341,24 @@
        [files-list (:files @app-state)])
      ;; [:h1 (str (:score @app-state))]
      [score-computer (:files @app-state)]
-     [score-section score-cursor]]))
+     [score-section score-cursor]
+     [:> Dropzone
+      {:disable-click true
+       ;; :style         {:position "relative"}
+       :accept        ""
+       :onDrop       #(do (swap! app-state assoc :drop-hover false)
+                          (file-event-handler %))
+       :on-drag-enter #(swap! app-state assoc :drop-hover true)
+       :on-drag-leave #(swap! app-state assoc :drop-hover false)}
+      (fn [^js env]
+        (r/as-element [:div (merge {:id "dropzone"}
+                                   (js->clj ((.-getRootProps env))))]))]]))
 
 (defn ^:export run []
-(r/render [main]
-          (js/document.getElementById "app")))
+  #_(react-dom/render (hx/f [Main])
+                      (js/document.getElementById "app"))
+
+  (r/render [main]
+            (js/document.getElementById "app")))
 
 (run)

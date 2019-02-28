@@ -38,20 +38,20 @@
 (defn new-empty-string [length]
   (apply str (take length (cycle " "))))
 
-(defn edn2sco [edn p1]
+(defn edn2sco [edn track-name]
   (let [max-p2 (apply max (map (comp count str :p2) edn))
         max-p3 (apply max (map (comp count str :dur) edn))
-        max-p4 (apply max (map (comp count str :vel) edn))]
+        max-p4 (apply max (map (comp count str #(or (:p4 %) (:vel %))) edn))]
     (reduce (fn [out-str data]
               (let [cur-p2-len (- max-p2 ((comp count str :p2) data))
                     cur-p3-len (- max-p3 ((comp count str :dur) data))
-                    cur-p4-len (- max-p4 ((comp count str :vel) data))]
+                    cur-p4-len (- max-p4 ((comp count str #(or (:p4 %) (:vel %))) data))]
                 (str out-str "\n"
-                     "i" (or p1 (inc (:channel data))) " "
+                     "i" track-name " "
                      (:p2 data) (new-empty-string cur-p2-len) " "
                      (:dur data) (new-empty-string cur-p3-len) " "
-                     (:vel data) (new-empty-string cur-p4-len) " "
-                     (:midinn data))))
+                     (or (:p4 data) (:vel data)) (new-empty-string cur-p4-len) " "
+                     (or (:p5 data) (:midinn data)))))
             "" edn)))
 
 (defn parse-midi [events tempo tick-resolution]
@@ -62,7 +62,7 @@
     (if (empty? event)
       (sort-by :p2 edn-out)
       (let [event-type (:subtype event)
-            cur-time   (+ last-time (/ (or (* (/ 60 tempo) (:deltaTime event)) 0) tick-resolution))]
+            cur-time   (+ last-time (/ (or (* (/ 60 tempo) (:deltaTime event)) 0) (or tick-resolution 256)))]
         (cond
           (= "noteOn" event-type)
           (recur events
